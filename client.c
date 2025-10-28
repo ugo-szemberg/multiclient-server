@@ -9,7 +9,24 @@
 #define LISTENING_PORT 5094
 #define BUFFER_SIZE 1024
 
+void Initialization(SOCKET* connectedSocket);
+void Chat(SOCKET* connectedSocket);
+void CleanUp(SOCKET* connectedSocket);
+
 int main(void)
+{
+	SOCKET connectedSocket;
+
+	Initialization(&connectedSocket);
+	
+	Chat(&connectedSocket);
+
+	CleanUp(&connectedSocket);
+
+	return 0;
+}
+
+void Initialization(SOCKET* connectedSocket)
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -18,9 +35,9 @@ int main(void)
 		exit(1);
 	}
 
-	SOCKET socketFD = socket(AF_INET, SOCK_STREAM, 0);
+	*connectedSocket = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (socketFD == INVALID_SOCKET)
+	if (*connectedSocket == INVALID_SOCKET)
 	{
 		fprintf(stderr, "Error: %d\n", WSAGetLastError());
 		exit(1);
@@ -38,33 +55,51 @@ int main(void)
 	}
 
 	int socketAddressLength = sizeof(socketAddress);
-	int connectionStatus = connect(socketFD, (struct sockaddr*)&socketAddress, socketAddressLength);
+	int connectionStatus = connect(*connectedSocket, (struct sockaddr*)&socketAddress, socketAddressLength);
 	if (connectionStatus == -1)
 	{
 		fprintf(stderr, "Error: %d\n", WSAGetLastError());
 		exit(1);
 	}
-
-	const char message[] = "Hello server, I'm the client.";
-	int sendBytes = send(socketFD, message, (int)strlen(message), 0);
-	if (sendBytes == SOCKET_ERROR)
+	else
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
+		printf("Connected to the server.\n");
 	}
+}
 
-	char buffer[BUFFER_SIZE] = { 0 };
-	int receivedBytes = recv(socketFD, buffer, BUFFER_SIZE, 0);
-	if (receivedBytes == SOCKET_ERROR)
-	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
-	}
-	printf("Server: %s\n", buffer);
+void Chat(SOCKET* connectedSocket)
+{
+	int iResult;
+	do {
+		char sendBuffer[BUFFER_SIZE] = { 0 };
+		fgets(sendBuffer, sizeof(sendBuffer), stdin);
 
-	closesocket(socketFD);
+		int sendBytes = send(*connectedSocket, sendBuffer, (int)strlen(sendBuffer), 0);
+		if (sendBytes == SOCKET_ERROR)
+		{
+			fprintf(stderr, "Error: %d\n", WSAGetLastError());
+			exit(1);
+		}
+
+		char recvBuffer[BUFFER_SIZE] = { 0 };
+		iResult = recv(*connectedSocket, recvBuffer, BUFFER_SIZE, 0);
+		if (iResult > 0)
+		{
+			printf("%s", recvBuffer);
+		}
+		else if (iResult == 0)
+		{
+			printf("Connection closed\n");
+		}
+		else
+		{
+			printf("recv failed: %d\n", WSAGetLastError());
+		}
+	} while (iResult > 0);
+}
+
+void CleanUp(SOCKET* connectedSocket)
+{
+	closesocket(*connectedSocket);
 	WSACleanup();
-
-	system("pause");
-	return 0;
 }

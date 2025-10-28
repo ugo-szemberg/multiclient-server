@@ -1,7 +1,7 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -54,28 +54,45 @@ int main(void)
 		fprintf(stderr, "Error: %d\n", WSAGetLastError());
 		exit(1);
 	}
-
-	char buffer[BUFFER_SIZE] = { 0 };
-	int receivedBytes = recv(connectedSocketFD, buffer, BUFFER_SIZE, 0);
-	if (receivedBytes == SOCKET_ERROR)
+	else
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
+		printf("Client connected\n");
 	}
 
-	printf("Client: %s\n", buffer);
-	const char message[] = "Hello client, I'm the server.";
-	int sendBytes = send(connectedSocketFD, message, (int)strlen(message), 0);
-	if (sendBytes == -1)
-	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
-	}
+	int iResult;
+	do {
+		char recvBuffer[BUFFER_SIZE] = { 0 };
+		iResult = recv(connectedSocketFD, recvBuffer, BUFFER_SIZE, 0);
+		if (iResult > 0)
+		{
+			printf("%s", recvBuffer);
+		}
+		else if (iResult == 0)
+		{
+			printf("Connection closing...\n");
+		}
+		else
+		{
+			fprintf(stderr, "Error: %d\n", WSAGetLastError());
+			closesocket(connectedSocketFD);
+			WSACleanup();
+			exit(1);
+		}
+
+		char sendBuffer[BUFFER_SIZE] = { 0 };
+		fgets(sendBuffer, sizeof(sendBuffer), stdin);
+		int sendBytes = send(connectedSocketFD, sendBuffer, (int)strlen(sendBuffer), 0);
+		if (sendBytes == -1)
+		{
+			fprintf(stderr, "Error: %d\n", WSAGetLastError());
+			exit(1);
+		}
+
+	} while (iResult > 0);
 
 	closesocket(connectedSocketFD);
 	closesocket(socketFD);
 	WSACleanup();
 
-	system("pause");
 	return 0;
 }
