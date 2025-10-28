@@ -1,71 +1,58 @@
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <stdlib.h>
-#include <stdio.h>
-
-#pragma comment(lib, "ws2_32.lib")
-
-#define LISTENING_PORT 5094
-#define PENDING_QUEUE_MAXLENGTH 1
-#define BUFFER_SIZE 1024
-#define ADDRESS_FAMILY AF_INET
+#include "server.h"
 
 int main(void)
 {
-	WSADATA wsa;
-	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+	init();
+
+	//SOCKET
+	SOCKET sock = socket(ADDRESS_FAMILY, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET)
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
+		get_error();
 	}
 
-	SOCKET socketFD = socket(ADDRESS_FAMILY, SOCK_STREAM, 0);
-	if (socketFD == INVALID_SOCKET)
-	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
-	}
-
-	struct sockaddr_in socketAddress;
+	SOCKADDR_IN socketAddress;
 	socketAddress.sin_family = ADDRESS_FAMILY;
 	socketAddress.sin_port = htons(LISTENING_PORT);
 	socketAddress.sin_addr.s_addr = INADDR_ANY;
 
-	int bindReturnCode = bind(socketFD, (struct sockaddr*)&socketAddress, sizeof(socketAddress));
-
-	if (bindReturnCode == SOCKET_ERROR)
+	//BIND
+	if (bind(sock, (struct sockaddr*)&socketAddress, sizeof(socketAddress)) == SOCKET_ERROR)
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
+		closesocket(sock);
+		get_error();
 	}
 
-	if (listen(socketFD, PENDING_QUEUE_MAXLENGTH) == -1)
+	//LISTEN
+	if (listen(sock, PENDING_QUEUE_MAXLENGTH) == SOCKET_ERROR)
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
+		closesocket(sock);
+		get_error();
 	}
 
 	puts("Waiting for a client to connect...");
 
-	int socketAdressLength = sizeof(socketAddress);
-	SOCKET connectedSocketFD = accept(socketFD, (struct sockaddr*)&socketAddress, &socketAdressLength);
-	if (connectedSocketFD == -1)
+	//ACCEPT
+	SOCKADDR_IN clientAddress = { 0 };
+	int socketAdressLength = sizeof(clientAddress);
+	SOCKET sock_client = accept(sock, (struct sockaddr*)&clientAddress, &socketAdressLength);
+	if (sock_client == INVALID_SOCKET)
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
+		closesocket(sock_client);
+		closesocket(sock);
+		get_error();
 	}
-	else
-	{
-		printf("Client connected\n");
-	}
+	
+	printf("Client connected\n");
 
 	int iResult;
 	do {
+		//READ
 		char recvBuffer[BUFFER_SIZE] = { 0 };
-		iResult = recv(connectedSocketFD, recvBuffer, BUFFER_SIZE, 0);
+		iResult = recv(sock_client, recvBuffer, BUFFER_SIZE, 0);
 		if (iResult > 0)
 		{
-			printf("%s", recvBuffer);
+			printf("[CLIENT] %s", recvBuffer);
 		}
 		else if (iResult == 0)
 		{
@@ -73,26 +60,49 @@ int main(void)
 		}
 		else
 		{
-			fprintf(stderr, "Error: %d\n", WSAGetLastError());
-			closesocket(connectedSocketFD);
-			WSACleanup();
-			exit(1);
+			closesocket(sock_client);
+			closesocket(sock);
+			get_error();
 		}
 
+		//WRITE
 		char sendBuffer[BUFFER_SIZE] = { 0 };
 		fgets(sendBuffer, sizeof(sendBuffer), stdin);
-		int sendBytes = send(connectedSocketFD, sendBuffer, (int)strlen(sendBuffer), 0);
+		int sendBytes = send(sock_client, sendBuffer, (int)strlen(sendBuffer), 0);
 		if (sendBytes == -1)
 		{
-			fprintf(stderr, "Error: %d\n", WSAGetLastError());
-			exit(1);
+			closesocket(sock_client);
+			closesocket(sock);
+			get_error();
 		}
 
 	} while (iResult > 0);
 
-	closesocket(connectedSocketFD);
-	closesocket(socketFD);
-	WSACleanup();
+	closesocket(sock_client);
+	closesocket(sock);
+	close();
 
 	return 0;
+}
+
+void get_error()
+{
+	fprintf(stderr, "Error: %d\n", WSAGetLastError());
+	WSACleanup();
+	exit(1);
+}
+
+void init()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+	{
+		fprintf(stderr, "Error: %d\n", WSAGetLastError());
+		exit(1);
+	}
+}
+
+void close()
+{
+	WSACleanup();
 }

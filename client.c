@@ -1,32 +1,17 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-
-#pragma comment(lib, "ws2_32.lib")
-
-#define CONNECTION_HOST "127.0.0.1"
-#define LISTENING_PORT 5094
-#define BUFFER_SIZE 1024
-
-void Initialization(SOCKET* connectedSocket);
-void Chat(SOCKET* connectedSocket);
-void CleanUp(SOCKET* connectedSocket);
+#include "client.h"
 
 int main(void)
 {
-	SOCKET connectedSocket;
+	SOCKET sock = init();
 
-	Initialization(&connectedSocket);
-	
-	Chat(&connectedSocket);
+	play_chat(sock);
 
-	CleanUp(&connectedSocket);
+	close(sock);
 
 	return 0;
 }
 
-void Initialization(SOCKET* connectedSocket)
+SOCKET init()
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -35,15 +20,15 @@ void Initialization(SOCKET* connectedSocket)
 		exit(1);
 	}
 
-	*connectedSocket = socket(AF_INET, SOCK_STREAM, 0);
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (*connectedSocket == INVALID_SOCKET)
+	if (sock == INVALID_SOCKET)
 	{
 		fprintf(stderr, "Error: %d\n", WSAGetLastError());
 		exit(1);
 	}
 
-	struct sockaddr_in socketAddress;
+	SOCKADDR_IN socketAddress;
 	socketAddress.sin_family = AF_INET;
 	socketAddress.sin_port = htons(LISTENING_PORT);
 
@@ -55,8 +40,8 @@ void Initialization(SOCKET* connectedSocket)
 	}
 
 	int socketAddressLength = sizeof(socketAddress);
-	int connectionStatus = connect(*connectedSocket, (struct sockaddr*)&socketAddress, socketAddressLength);
-	if (connectionStatus == -1)
+	int connectionStatus = connect(sock, (struct sockaddr*)&socketAddress, socketAddressLength);
+	if (connectionStatus == SOCKET_ERROR)
 	{
 		fprintf(stderr, "Error: %d\n", WSAGetLastError());
 		exit(1);
@@ -65,16 +50,18 @@ void Initialization(SOCKET* connectedSocket)
 	{
 		printf("Connected to the server.\n");
 	}
+
+	return sock;
 }
 
-void Chat(SOCKET* connectedSocket)
+void play_chat(SOCKET sock)
 {
 	int iResult;
 	do {
 		char sendBuffer[BUFFER_SIZE] = { 0 };
 		fgets(sendBuffer, sizeof(sendBuffer), stdin);
 
-		int sendBytes = send(*connectedSocket, sendBuffer, (int)strlen(sendBuffer), 0);
+		int sendBytes = send(sock, sendBuffer, (int)strlen(sendBuffer), 0);
 		if (sendBytes == SOCKET_ERROR)
 		{
 			fprintf(stderr, "Error: %d\n", WSAGetLastError());
@@ -82,10 +69,10 @@ void Chat(SOCKET* connectedSocket)
 		}
 
 		char recvBuffer[BUFFER_SIZE] = { 0 };
-		iResult = recv(*connectedSocket, recvBuffer, BUFFER_SIZE, 0);
+		iResult = recv(sock, recvBuffer, BUFFER_SIZE, 0);
 		if (iResult > 0)
 		{
-			printf("%s", recvBuffer);
+			printf("[SERVER] %s", recvBuffer);
 		}
 		else if (iResult == 0)
 		{
@@ -98,8 +85,8 @@ void Chat(SOCKET* connectedSocket)
 	} while (iResult > 0);
 }
 
-void CleanUp(SOCKET* connectedSocket)
+void close(SOCKET sock)
 {
-	closesocket(*connectedSocket);
+	closesocket(sock);
 	WSACleanup();
 }
