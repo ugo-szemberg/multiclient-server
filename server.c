@@ -2,6 +2,7 @@
 
 int main(void)
 {
+	printf("---SERVER---\n\n");
 	init();
 
 	//SOCKET
@@ -11,7 +12,7 @@ int main(void)
 		get_error();
 	}
 
-	SOCKADDR_IN socketAddress;
+	struct sockaddr_in socketAddress;
 	socketAddress.sin_family = ADDRESS_FAMILY;
 	socketAddress.sin_port = htons(LISTENING_PORT);
 	socketAddress.sin_addr.s_addr = INADDR_ANY;
@@ -30,10 +31,10 @@ int main(void)
 		get_error();
 	}
 
-	puts("Waiting for a client to connect...");
+	printf("Waiting...");
 
 	//ACCEPT
-	SOCKADDR_IN clientAddress = { 0 };
+	struct sockaddr_in clientAddress = { 0 };
 	int socketAdressLength = sizeof(clientAddress);
 	SOCKET sock_client = accept(sock, (struct sockaddr*)&clientAddress, &socketAdressLength);
 	if (sock_client == INVALID_SOCKET)
@@ -43,7 +44,7 @@ int main(void)
 		get_error();
 	}
 	
-	printf("Client connected\n");
+	printf("Client [%d] connected\n", (int)sock_client);
 
 	int iResult;
 	do {
@@ -69,7 +70,7 @@ int main(void)
 		char sendBuffer[BUFFER_SIZE] = { 0 };
 		fgets(sendBuffer, sizeof(sendBuffer), stdin);
 		int sendBytes = send(sock_client, sendBuffer, (int)strlen(sendBuffer), 0);
-		if (sendBytes == -1)
+		if (sendBytes == SOCKET_ERROR)
 		{
 			closesocket(sock_client);
 			closesocket(sock);
@@ -85,14 +86,14 @@ int main(void)
 	return 0;
 }
 
-void get_error()
+void get_error(void)
 {
 	fprintf(stderr, "Error: %d\n", WSAGetLastError());
 	WSACleanup();
 	exit(1);
 }
 
-void init()
+void init(void)
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -102,7 +103,7 @@ void init()
 	}
 }
 
-void close()
+void close(void)
 {
 	WSACleanup();
 }

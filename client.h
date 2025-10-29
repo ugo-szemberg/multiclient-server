@@ -12,7 +12,7 @@
 #define LISTENING_PORT 5094
 #define BUFFER_SIZE 1024
 
-SOCKET init();
+SOCKET init(void);
 void play_chat(SOCKET sock);
 void close(SOCKET sock);
 

@@ -2,6 +2,8 @@
 
 int main(void)
 {
+	printf("---CLIENT---\n\n");
+
 	SOCKET sock = init();
 
 	play_chat(sock);
@@ -11,7 +13,7 @@ int main(void)
 	return 0;
 }
 
-SOCKET init()
+SOCKET init(void)
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -28,7 +30,7 @@ SOCKET init()
 		exit(1);
 	}
 
-	SOCKADDR_IN socketAddress;
+	struct sockaddr_in socketAddress;
 	socketAddress.sin_family = AF_INET;
 	socketAddress.sin_port = htons(LISTENING_PORT);
 
