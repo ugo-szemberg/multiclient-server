@@ -13,7 +13,7 @@
 #define BUFFER_SIZE 1024
 
 SOCKET init(void);
-void play_chat(SOCKET sock);
+void logic(SOCKET sock);
 void close(SOCKET sock);
 
 #endif

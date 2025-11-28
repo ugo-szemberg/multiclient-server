@@ -6,7 +6,7 @@ int main(void)
 
 	SOCKET sock = init();
 
-	play_chat(sock);
+	logic(sock);
 
 	close(sock);
 
@@ -56,25 +56,15 @@ SOCKET init(void)
 	return sock;
 }
 
-void play_chat(SOCKET sock)
+void logic(SOCKET sock)
 {
 	int iResult;
 	do {
-		char sendBuffer[BUFFER_SIZE] = { 0 };
-		fgets(sendBuffer, sizeof(sendBuffer), stdin);
-
-		int sendBytes = send(sock, sendBuffer, (int)strlen(sendBuffer), 0);
-		if (sendBytes == SOCKET_ERROR)
-		{
-			fprintf(stderr, "Error: %d\n", WSAGetLastError());
-			exit(1);
-		}
-
 		char recvBuffer[BUFFER_SIZE] = { 0 };
 		iResult = recv(sock, recvBuffer, BUFFER_SIZE, 0);
 		if (iResult > 0)
 		{
-			printf("[SERVER] %s", recvBuffer);
+			printf("%s", recvBuffer);
 		}
 		else if (iResult == 0)
 		{
@@ -83,6 +73,16 @@ void play_chat(SOCKET sock)
 		else
 		{
 			printf("recv failed: %d\n", WSAGetLastError());
+		}
+
+		char sendBuffer[BUFFER_SIZE] = { 0 };
+		fgets(sendBuffer, sizeof(sendBuffer), stdin);
+
+		int sendBytes = send(sock, sendBuffer, (int)strlen(sendBuffer), 0);
+		if (sendBytes == SOCKET_ERROR)
+		{
+			fprintf(stderr, "Error: %d\n", WSAGetLastError());
+			exit(1);
 		}
 	} while (iResult > 0);
 }
