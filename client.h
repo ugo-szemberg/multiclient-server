@@ -1,8 +1,6 @@
 #ifndef __CLIENT__
 #define __CLIENT__
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -12,8 +10,7 @@
 #define LISTENING_PORT 5094
 #define BUFFER_SIZE 1024
 
-SOCKET init(void);
-void logic(SOCKET sock);
-void close(SOCKET sock);
+int init(void);
+void logic(int sock);
 
 #endif

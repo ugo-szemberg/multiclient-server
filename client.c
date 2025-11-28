@@ -1,10 +1,16 @@
 #include "client.h"
 
+#include <unistd.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 int main(void)
 {
 	printf("---CLIENT---\n\n");
 
-	SOCKET sock = init();
+	int sock = init();
 
 	logic(sock);
 
@@ -13,20 +19,13 @@ int main(void)
 	return 0;
 }
 
-SOCKET init(void)
+int init(void)
 {
-	WSADATA wsa;
-	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
-		exit(1);
-	}
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
 
-	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
-
-	if (sock == INVALID_SOCKET)
+	if (sock == -1)
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
+		fprintf(stderr, "Error:\n");
 		exit(1);
 	}
 
@@ -37,15 +36,15 @@ SOCKET init(void)
 	int inetReturnCode = inet_pton(AF_INET, CONNECTION_HOST, &socketAddress.sin_addr);
 	if (inetReturnCode != 1)
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
+		fprintf(stderr, "Error:\n");
 		exit(1);
 	}
 
 	int socketAddressLength = sizeof(socketAddress);
 	int connectionStatus = connect(sock, (struct sockaddr*)&socketAddress, socketAddressLength);
-	if (connectionStatus == SOCKET_ERROR)
+	if (connectionStatus == -1)
 	{
-		fprintf(stderr, "Error: %d\n", WSAGetLastError());
+		fprintf(stderr, "Error:\n");
 		exit(1);
 	}
 	else
@@ -56,12 +55,12 @@ SOCKET init(void)
 	return sock;
 }
 
-void logic(SOCKET sock)
+void logic(int sock)
 {
 	int iResult;
 	do {
 		char recvBuffer[BUFFER_SIZE] = { 0 };
-		iResult = recv(sock, recvBuffer, BUFFER_SIZE, 0);
+		iResult = (int)recv(sock, recvBuffer, BUFFER_SIZE, 0);
 		if (iResult > 0)
 		{
 			printf("%s", recvBuffer);
@@ -72,23 +71,17 @@ void logic(SOCKET sock)
 		}
 		else
 		{
-			printf("recv failed: %d\n", WSAGetLastError());
+			printf("recv failed:\n");
 		}
 
 		char sendBuffer[BUFFER_SIZE] = { 0 };
 		fgets(sendBuffer, sizeof(sendBuffer), stdin);
 
-		int sendBytes = send(sock, sendBuffer, (int)strlen(sendBuffer), 0);
-		if (sendBytes == SOCKET_ERROR)
+		int sendBytes = (int)send(sock, sendBuffer, (int)strlen(sendBuffer), 0);
+		if (sendBytes == -1)
 		{
-			fprintf(stderr, "Error: %d\n", WSAGetLastError());
+			fprintf(stderr, "Error:\n");
 			exit(1);
 		}
 	} while (iResult > 0);
-}
-
-void close(SOCKET sock)
-{
-	closesocket(sock);
-	WSACleanup();
 }
