@@ -16,12 +16,12 @@ int main(void)
 		return -1;
 	}
 
-	struct sockaddr_in socketAddress;
-	socketAddress.sin_family = ADDRESS_FAMILY;
-	socketAddress.sin_port = htons(LISTENING_PORT);
-	socketAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+	struct sockaddr_in socket_address;
+	socket_address.sin_family = ADDRESS_FAMILY;
+	socket_address.sin_port = htons(LISTENING_PORT);
+	socket_address.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	if (bind(sock, (struct sockaddr*)&socketAddress, sizeof(socketAddress)) == -1)
+	if (bind(sock, (struct sockaddr*)&socket_address, sizeof(socket_address)) == -1)
 	{
 		close(sock);
 		return -1;
@@ -35,11 +35,13 @@ int main(void)
 
 	fd_set sock_list;
 	fd_set read_fds;
+
 	struct timeval timer;
 	int status = 0;
 
 	FD_ZERO(&sock_list);
 	FD_ZERO(&read_fds);
+
 	FD_SET(sock, &sock_list);
 	int fd_max = sock;
 
@@ -98,7 +100,7 @@ void accept_new_connection(int sock, fd_set* sock_list, int* fd_max)
 	}
 	printf("Server accepted new connection\n-New connection: Client %d\n", sock_client);
 
-	char message[] = "[Server] Hello new client\n";
+	const char message[] = "[Server] Hello new client\n";
 	if (send(sock_client, message, strlen(message), 0) == -1)
 	{
 		close(sock);
@@ -122,7 +124,7 @@ void read_from_socket(int sock_server, int sock_client, fd_set* sock_list, int f
 			char message[BUFFER_SIZE] = { 0 };
 			snprintf(message, sizeof(message), "[CLIENT %d] %s", sock_client, buffer);
 
-			if(send(i, message, sizeof(message), 0) == -1)
+			if(send(i, message, strlen(message), 0) == -1)
 			{
 				close(sock_server);
 				return;

@@ -1,5 +1,4 @@
 #include "client.h"
-
 #include <unistd.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -9,6 +8,10 @@
 int main(void)
 {
 	printf("---CLIENT---\n\n");
+
+	printf("Type your nickname: ");
+	char nickname[30];
+	fgets(nickname, sizeof(nickname), stdin);
 
 	int sock = init();
 
@@ -29,20 +32,20 @@ int init(void)
 		exit(1);
 	}
 
-	struct sockaddr_in socketAddress;
-	socketAddress.sin_family = AF_INET;
-	socketAddress.sin_port = htons(LISTENING_PORT);
+	struct sockaddr_in socket_address;
+	socket_address.sin_family = AF_INET;
+	socket_address.sin_port = htons(LISTENING_PORT);
 
-	int inetReturnCode = inet_pton(AF_INET, CONNECTION_HOST, &socketAddress.sin_addr);
-	if (inetReturnCode != 1)
+	int inet_return_code = inet_pton(AF_INET, CONNECTION_HOST, &socket_address.sin_addr);
+	if (inet_return_code != 1)
 	{
 		fprintf(stderr, "Error:\n");
 		exit(1);
 	}
 
-	int socketAddressLength = sizeof(socketAddress);
-	int connectionStatus = connect(sock, (struct sockaddr*)&socketAddress, socketAddressLength);
-	if (connectionStatus == -1)
+	int socket_address_length = sizeof(socket_address);
+	int connection_status = connect(sock, (struct sockaddr*)&socket_address, socket_address_length);
+	if (connection_status == -1)
 	{
 		fprintf(stderr, "Error:\n");
 		exit(1);
@@ -57,31 +60,37 @@ int init(void)
 
 void logic(int sock)
 {
-	int iResult;
-	do {
-		char recvBuffer[BUFFER_SIZE] = { 0 };
-		iResult = (int)recv(sock, recvBuffer, BUFFER_SIZE, 0);
-		if (iResult > 0)
+	fd_set read_fds;
+
+	while (1)
+	{
+		FD_ZERO(&read_fds);
+		FD_SET(STDIN_FILENO, &read_fds);
+		FD_SET(sock, &read_fds);
+		int maxfd = (sock > STDIN_FILENO) ? sock : STDIN_FILENO;
+
+		select(sock + 1, &read_fds, NULL, NULL, NULL);
+
+		if (FD_ISSET(STDIN_FILENO, &read_fds))
 		{
-			printf("%s", recvBuffer);
-		}
-		else if (iResult == 0)
-		{
-			printf("Connection closed\n");
-		}
-		else
-		{
-			printf("recv failed:\n");
+			char buffer[BUFFER_SIZE];
+			int n = read(STDIN_FILENO, buffer, sizeof(buffer));
+			if (n > 0)
+			{
+				send(sock, buffer, n, 0);
+			}
 		}
 
-		char sendBuffer[BUFFER_SIZE] = { 0 };
-		fgets(sendBuffer, sizeof(sendBuffer), stdin);
-
-		int sendBytes = (int)send(sock, sendBuffer, (int)strlen(sendBuffer), 0);
-		if (sendBytes == -1)
+		if (FD_ISSET(sock, &read_fds))
 		{
-			fprintf(stderr, "Error:\n");
-			exit(1);
+			char buffer[BUFFER_SIZE];
+			int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+			if (n <= 0)
+			{
+				break;
+			}
+			buffer[n] = '\0';
+			printf("%s", buffer);
 		}
-	} while (iResult > 0);
+	}
 }
