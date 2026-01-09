@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <poll.h>
 
 int main(void)
 {
@@ -60,18 +61,20 @@ int init(void)
 
 void logic(int sock)
 {
-	fd_set read_fds;
+	struct pollfd poll_fds[2];
+
+	poll_fds[0].fd = STDIN_FILENO;
+	poll_fds[0].events = POLLIN;
+
+	poll_fds[1].fd = sock;
+	poll_fds[1].events = POLLIN;
+
 
 	while (1)
 	{
-		FD_ZERO(&read_fds);
-		FD_SET(STDIN_FILENO, &read_fds);
-		FD_SET(sock, &read_fds);
-		int maxfd = (sock > STDIN_FILENO) ? sock : STDIN_FILENO;
+		int ret = poll(poll_fds, 2, -1);
 
-		select(sock + 1, &read_fds, NULL, NULL, NULL);
-
-		if (FD_ISSET(STDIN_FILENO, &read_fds))
+		if (poll_fds[0].revents & POLLIN)
 		{
 			char buffer[BUFFER_SIZE];
 			int n = read(STDIN_FILENO, buffer, sizeof(buffer));
@@ -81,7 +84,7 @@ void logic(int sock)
 			}
 		}
 
-		if (FD_ISSET(sock, &read_fds))
+		if (poll_fds[1].revents & POLLIN)
 		{
 			char buffer[BUFFER_SIZE];
 			int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
