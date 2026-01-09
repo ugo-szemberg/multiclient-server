@@ -8,8 +8,10 @@
 #define BUFFER_SIZE 1024
 #define ADDRESS_FAMILY AF_INET
 #define TIMER_SELECT 3
+#define MAX_EVENTS 64
+#define MAX_CLIENTS 10
 
-void accept_new_connection(int sock, fd_set* sock_list, int* fd_max);
-void read_from_socket(int sock_server, int sock_client, fd_set* sock_list, int fd_max);
+void accept_new_connection(int sock, int epoll_fd, int* clients, int* num_clients);
+void read_from_socket(int sock_client, int epoll_fd, int* clients, int num_clients);
 
 #endif
