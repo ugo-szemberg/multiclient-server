@@ -4,71 +4,66 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
+#include <string.h>
+#include <stdio.h>
 
 int main(void)
 {
-	const int sock = init();
-
 	printf("---CLIENT---\n\n Type your nickname: ");
 	char nickname[BUFFER_NICKNAME];
-	fgets(nickname, BUFFER_NICKNAME, stdin);
+	if (!fgets(nickname, BUFFER_NICKNAME, stdin))
+	{
+		return -1;
+	}
 
-	fill_nickname(nickname);
+	set_nickname(nickname);
 
-	update(sock);
+	const int sock = connect_to_server();
+
+	client_loop(sock);
 
 	close(sock);
 
 	return 0;
 }
 
-void fill_nickname(char nickname[BUFFER_NICKNAME])
+void set_nickname(const char* nickname)
 {
-	int i = 0;
-	while (nickname[i] != '\n')
-	{
-		message.nickname[i] = nickname[i];
-		++i;
-	}
+	const size_t length = strcspn(nickname, "\n");
+	memcpy(message.nickname, nickname, length);
+	message.nickname[length] = '\0';
 }
 
-int init(void)
+int connect_to_server(void)
 {
 	const int sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sock == -1)
 	{
-		fprintf(stderr, "Error:\n");
-		exit(1);
+		return -1;
 	}
 
 	struct sockaddr_in socket_address;
 	socket_address.sin_family = AF_INET;
 	socket_address.sin_port = htons(LISTENING_PORT);
 
-	const int inet_return_code = inet_pton(AF_INET, CONNECTION_HOST, &socket_address.sin_addr);
-	if (inet_return_code != 1)
+	if (inet_pton(AF_INET, CONNECTION_HOST, &socket_address.sin_addr) != 1)
 	{
-		fprintf(stderr, "Error:\n");
-		exit(1);
+		close(sock);
+		return -1;
 	}
 
-	const int socket_address_length = sizeof(socket_address);
-	const int connection_status = connect(sock, (struct sockaddr*)&socket_address, socket_address_length);
-	if (connection_status == -1)
+	if (connect(sock, (struct sockaddr*)&socket_address, sizeof(socket_address)) == -1)
 	{
-		fprintf(stderr, "Error:\n");
-		exit(1);
+		close(sock);
+		return -1;
 	}
-	else
-	{
-		printf("Connected to the server.\n");
-	}
+	printf("Connected to the server.\n");
 
 	return sock;
 }
 
-void update(const int sock)
+void client_loop(const int sock)
 {
 	struct pollfd poll_fds[2];
 
@@ -80,15 +75,20 @@ void update(const int sock)
 
 	while (1)
 	{
-		poll(poll_fds, 2, -1);
+		if (poll(poll_fds, 2, -1) == -1)
+		{
+			break;
+		}
 
 		if (poll_fds[0].revents & POLLIN)
 		{
-			const ssize_t size = read(STDIN_FILENO, &message.content, BUFFER_MESSAGE);
-			if (size > 0)
+			const ssize_t bytes = read(STDIN_FILENO, &message.content, BUFFER_MESSAGE);
+			if (bytes <= 0)
 			{
-				send(sock, &message, sizeof(message), 0);
+				break;
 			}
+
+			send(sock, &message, sizeof(message), 0);
 		}
 
 		if (poll_fds[1].revents & POLLIN)
@@ -99,6 +99,7 @@ void update(const int sock)
 			{
 				break;
 			}
+
 			buffer[size] = '\0';
 			printf("%s", buffer);
 		}

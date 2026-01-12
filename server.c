@@ -1,19 +1,18 @@
 #include "server.h"
 #include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <string.h>
 #include <sys/epoll.h>
 
 int main(void)
 {
 	printf("---SERVER---\n\n");
 
-	int sock = socket(ADDRESS_FAMILY, SOCK_STREAM, 0);
+	const int sock = socket(ADDRESS_FAMILY, SOCK_STREAM, 0);
 	if (sock == -1)
 	{
-		close(sock);
 		return -1;
 	}
 
@@ -28,23 +27,26 @@ int main(void)
 		return -1;
 	}
 
-	if (listen(sock, PENDING_QUEUE_MAXLENGTH) == -1)
+	if (listen(sock, MAX_CLIENTS) == -1)
 	{
 		close(sock);
 		return -1;
 	}
 
-	int epoll_fd = epoll_create1(0);
-	if (epoll_fd == -1) {
-		perror("epoll_create1");
+	const int epoll_fd = epoll_create1(0);
+	if (epoll_fd == -1)
+	{
+		close(sock);
 		return -1;
 	}
 
-	struct epoll_event ev;
-	ev.events = EPOLLIN;
-	ev.data.fd = sock;
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev) == -1) {
-		perror("epoll_ctl: server_fd");
+	struct epoll_event event;
+	event.events = EPOLLIN;
+	event.data.fd = sock;
+	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &event) == -1)
+	{
+		close(sock);
+		close(epoll_fd);
 		return -1;
 	}
 
@@ -54,12 +56,18 @@ int main(void)
 	while (1)
 	{
 		struct epoll_event events[MAX_EVENTS];
-		int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-		for (int i = 0; i < nfds; i++)
+		const int fds_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+		if (fds_count == -1)
 		{
-			int fd = events[i].data.fd;
+			break;
+		}
+
+		for (int i = 0; i < fds_count; ++i)
+		{
+			const int fd = events[i].data.fd;
+
 			if (fd == sock)
-				{
+			{
 				accept_new_connection(sock, epoll_fd, clients, &num_clients);
 			}
 			else
@@ -70,54 +78,75 @@ int main(void)
 	}
 	
 	close(sock);
-
+	close(epoll_fd);
 	return 0;
 }
 
-void accept_new_connection(int sock, int epoll_fd, int* clients, int* num_clients)
+void accept_new_connection(const int sock, const int epoll_fd, int* clients, int* num_clients)
 {
-	int sock_client = accept(sock, NULL, NULL);
+	const int sock_client = accept(sock, NULL, NULL);
 	if (sock_client == -1)
 	{
 		return;
 	}
 
-	struct epoll_event ev;
-	ev.events = EPOLLIN;
-	ev.data.fd = sock_client;
-	epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_client, &ev);
-	clients[*num_clients] = sock_client;
-	*num_clients += 1;
-	printf("Server accepted new connection\n-New connection: Client %d\n", sock_client);
-
-	const char message[] = "[Server] Hello new client\n";
-	if (send(sock_client, message, strlen(message), 0) == -1)
+	if (*num_clients >= MAX_CLIENTS)
 	{
 		close(sock_client);
 		return;
 	}
-}
 
-void read_from_socket(int sock_client, int epoll_fd, int* clients, int num_clients)
-{
-	struct Message m;
-	if (recv(sock_client, &m, sizeof(m), 0) == -1)
+	struct epoll_event event;
+	event.events = EPOLLIN;
+	event.data.fd = sock_client;
+
+	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_client, &event) == -1)
 	{
+		close(sock_client);
 		return;
 	}
 
-	char message[BUFFER_MESSAGE + BUFFER_NICKNAME] = { 0 };
-	snprintf(message, sizeof(message), "[%s] %s", m.nickname, m.content);
+	clients[*num_clients] = sock_client;
+	++(*num_clients);
+	printf("New client connected : Client %d\n", sock_client);
+
+	const char message[] = "[Server] Welcome new client\n";
+	send(sock_client, message, sizeof(message), 0);
+}
+
+void read_from_socket(const int sock_client, const int epoll_fd, int* clients, int num_clients)
+{
+	struct Message message;
+	const ssize_t bytes = recv(sock_client, &message, sizeof(message), 0);
+
+	if (bytes <= 0)
+	{
+		printf("Client disconnected : Client %d\n", sock_client);
+		remove_client(sock_client, epoll_fd, clients, &num_clients);
+		return;
+	}
+
+	char send_message[BUFFER_MESSAGE + BUFFER_NICKNAME + 3];
+	snprintf(send_message, sizeof(send_message), "[%s] %s", message.nickname, message.content);
 
 	for (int i = 0; i < num_clients; i++)
 	{
-		if (clients[i] == sock_client)
-			continue;
+		send(clients[i], send_message, strlen(send_message), 0);
+	}
+}
 
-		if(send(clients[i], message, strlen(message), 0) == -1)
+void remove_client(const int fd, const int epoll_fd, int* clients, int* num_clients)
+{
+	epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+	close(fd);
+
+	for (int i = 0; i < *num_clients; i++)
+	{
+		if (clients[i] == fd)
 		{
-			close(clients[i]);
-			return;
+			clients[i] = clients[*num_clients - 1];
+			--(*num_clients);
+			break;
 		}
 	}
 }
