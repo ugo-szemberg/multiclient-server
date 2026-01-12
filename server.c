@@ -110,8 +110,7 @@ void accept_new_connection(const int sock, const int epoll_fd, int* clients, int
 	++(*num_clients);
 	printf("New client connected : Client %d\n", sock_client);
 
-	const char message[] = "[Server] Welcome new client\n";
-	send(sock_client, message, sizeof(message), 0);
+	send(sock_client, record_messages, strlen(record_messages), 0);
 }
 
 void read_from_socket(const int sock_client, const int epoll_fd, int* clients, int num_clients)
@@ -129,9 +128,14 @@ void read_from_socket(const int sock_client, const int epoll_fd, int* clients, i
 	char send_message[BUFFER_MESSAGE + BUFFER_NICKNAME + 3];
 	snprintf(send_message, sizeof(send_message), "[%s] %s", message.nickname, message.content);
 
+	strcat(record_messages, send_message);
+
 	for (int i = 0; i < num_clients; i++)
 	{
-		send(clients[i], send_message, strlen(send_message), 0);
+		if (clients[i] != sock_client)
+		{
+			send(clients[i], send_message, strlen(send_message), 0);
+		}
 	}
 }
 

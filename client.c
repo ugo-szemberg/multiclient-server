@@ -34,6 +34,11 @@ void set_nickname(const char* nickname)
 	message.nickname[length] = '\0';
 }
 
+void reset_message_content(void)
+{
+	memset(message.content, '\0', BUFFER_MESSAGE);
+}
+
 int connect_to_server(void)
 {
 	const int sock = socket(AF_INET, SOCK_STREAM, 0);

@@ -9,6 +9,7 @@
 static int connect_to_server(void);
 static void client_loop(int sock);
 static void set_nickname(const char* nickname);
+static void reset_message_content(void);
 
 struct Message
 {
@@ -16,6 +17,6 @@ struct Message
     char content[BUFFER_MESSAGE];
 };
 
-struct Message message;
+static struct Message message;
 
 #endif

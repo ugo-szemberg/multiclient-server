@@ -18,4 +18,6 @@ struct Message
     char content[BUFFER_MESSAGE];
 };
 
+static char record_messages[10000] = {0};
+
 #endif
