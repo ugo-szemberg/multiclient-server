@@ -100,14 +100,14 @@ void accept_new_connection(int sock, int epoll_fd, int* clients, int* num_client
 
 void read_from_socket(int sock_client, int epoll_fd, int* clients, int num_clients)
 {
-	char buffer[BUFFER_SIZE] = { 0 };
-	if (recv(sock_client, buffer, sizeof(buffer), 0) == -1)
+	struct Message m;
+	if (recv(sock_client, &m, sizeof(m), 0) == -1)
 	{
 		return;
 	}
 
-	char message[BUFFER_SIZE] = { 0 };
-	snprintf(message, sizeof(message), "[CLIENT %d] %s", sock_client, buffer);
+	char message[BUFFER_MESSAGE + BUFFER_NICKNAME] = { 0 };
+	snprintf(message, sizeof(message), "[%s] %s", m.nickname, m.content);
 
 	for (int i = 0; i < num_clients; i++)
 	{

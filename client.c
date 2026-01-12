@@ -1,6 +1,5 @@
 #include "client.h"
 #include <unistd.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -8,22 +7,34 @@
 
 int main(void)
 {
-	printf("---CLIENT---\n\n Type your nickname: ");
-	char nickname[30];
-	fgets(nickname, sizeof(nickname), stdin);
-
 	const int sock = init();
 
-	logic(sock);
+	printf("---CLIENT---\n\n Type your nickname: ");
+	char nickname[BUFFER_NICKNAME];
+	fgets(nickname, BUFFER_NICKNAME, stdin);
+
+	fill_nickname(nickname);
+
+	update(sock);
 
 	close(sock);
 
 	return 0;
 }
 
+void fill_nickname(char nickname[BUFFER_NICKNAME])
+{
+	int i = 0;
+	while (nickname[i] != '\n')
+	{
+		message.nickname[i] = nickname[i];
+		++i;
+	}
+}
+
 int init(void)
 {
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	const int sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sock == -1)
 	{
@@ -57,7 +68,7 @@ int init(void)
 	return sock;
 }
 
-void logic(const int sock)
+void update(const int sock)
 {
 	struct pollfd poll_fds[2];
 
@@ -73,18 +84,17 @@ void logic(const int sock)
 
 		if (poll_fds[0].revents & POLLIN)
 		{
-			char buffer[BUFFER_SIZE];
-			const ssize_t size = read(STDIN_FILENO, buffer, BUFFER_SIZE);
+			const ssize_t size = read(STDIN_FILENO, &message.content, BUFFER_MESSAGE);
 			if (size > 0)
 			{
-				send(sock, buffer, size, 0);
+				send(sock, &message, sizeof(message), 0);
 			}
 		}
 
 		if (poll_fds[1].revents & POLLIN)
 		{
-			char buffer[BUFFER_SIZE];
-			const ssize_t size = recv(sock, buffer, BUFFER_SIZE - 1, 0);
+			char buffer[BUFFER_MESSAGE];
+			const ssize_t size = recv(sock, buffer, BUFFER_MESSAGE - 1, 0);
 			if (size <= 0)
 			{
 				break;
