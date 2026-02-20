@@ -1,4 +1,5 @@
-#include "../include/client.h"
+#include "../include/network.h"
+#include "../include/message.h"
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -8,51 +9,10 @@
 #include <stdio.h>
 #include <time.h>
 
-size_t send_all(int sock, const void *buffer, size_t length)
+void set_nickname(char* nickname)
 {
-	size_t total_sent = 0;
-	const char *ptr = buffer;
-
-	while (total_sent < length)
-	{
-		ssize_t sent = send(sock, ptr + total_sent, length - total_sent, 0);
-
-		if (sent <= 0)
-		{
-			return -1;
-		}
-
-		total_sent += sent;
-	}
-
-	return total_sent;
-}
-
-size_t recv_all(int sock, void *buffer, size_t length)
-{
-	size_t total_received = 0;
-	char *ptr = buffer;
-
-	while (total_received < length)
-	{
-		ssize_t received = recv(sock, ptr + total_received, length - total_received, 0);
-
-		if (received <= 0)
-		{
-			return -1;
-		}
-
-		total_received += received;
-	}
-
-	return total_received;
-}
-
-void set_nickname(char* _nickname)
-{
-	const size_t length = strlen(_nickname);
-	_nickname[length - 1] = '\0';
-	strcpy(nickname, _nickname);
+	const size_t length = strlen(nickname);
+	nickname[length - 1] = '\0';
 }
 
 int connect_to_server(void)
@@ -84,7 +44,7 @@ int connect_to_server(void)
 	return sock;
 }
 
-void client_loop(const int sock)
+void client_loop(const int sock, const char* nickname)
 {
 	struct pollfd poll_fds[2];
 
@@ -105,24 +65,16 @@ void client_loop(const int sock)
 		{
 			struct Message send_message = {0};
 			strcpy(send_message.nickname, nickname);
-			char buff[BUFFER_CONTENT] = {0};
-			const ssize_t bytes = read(STDIN_FILENO, buff, BUFFER_CONTENT);
-			buff[bytes - 1] = '\0';
-
-
-			strcpy(send_message.content, buff);
+			const ssize_t bytes = read(STDIN_FILENO, &send_message.content, BUFFER_CONTENT);
 			if (bytes <= 0)
 			{
 				break;
 			}
+			send_message.content[bytes - 1] = '\0';
 
 			time_t now = time(NULL);
 			const struct tm* local = localtime(&now);
-			char buf[BUFFER_TIME] = {0};
-
-			strftime(buf, sizeof(buf), "%H:%M", local);
-			strcpy(send_message.time, buf);
-			printf("%s", send_message.time);
+			strftime(send_message.time, sizeof(send_message.time), "%H:%M", local);
 
 			send_all(sock, &send_message, sizeof(send_message));
 		}
@@ -131,7 +83,9 @@ void client_loop(const int sock)
 		{
 			struct Message recv_message = {0};
 			if (recv_all(sock, &recv_message, sizeof(recv_message)) == -1)
+			{
 				break;
+			}
 
 			printf("[%s] %s %s\n", recv_message.nickname, recv_message.content, recv_message.time);
 		}
@@ -151,7 +105,7 @@ int main(void)
 
 	const int sock = connect_to_server();
 
-	client_loop(sock);
+	client_loop(sock, nickname);
 
 	close(sock);
 

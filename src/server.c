@@ -1,50 +1,12 @@
-#include "../include/server.h"
+#include "../include/network.h"
+#include "../include/message.h"
 #include <stdio.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <sys/epoll.h>
 
-size_t send_all(int sock, const void *buffer, size_t length)
-{
-	size_t total_sent = 0;
-	const char *ptr = buffer;
-
-	while (total_sent < length)
-	{
-		ssize_t sent = send(sock, ptr + total_sent, length - total_sent, 0);
-
-		if (sent <= 0)
-		{
-			return -1;
-		}
-
-		total_sent += sent;
-	}
-
-	return total_sent;
-}
-
-size_t recv_all(int sock, void *buffer, size_t length)
-{
-	size_t total_received = 0;
-	char *ptr = buffer;
-
-	while (total_received < length)
-	{
-		ssize_t received = recv(sock, ptr + total_received, length - total_received, 0);
-
-		if (received <= 0)
-		{
-			return -1;
-		}
-
-		total_received += received;
-	}
-
-	return total_received;
-}
+//static char record_messages[10000] = {0};
 
 void accept_new_connection(const int sock, const int epoll_fd, int* clients, int* num_clients)
 {
@@ -82,6 +44,22 @@ void accept_new_connection(const int sock, const int epoll_fd, int* clients, int
 	//}
 }
 
+void remove_client(const int fd, const int epoll_fd, int* clients, int* num_clients)
+{
+	epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+	close(fd);
+
+	for (int i = 0; i < *num_clients; i++)
+	{
+		if (clients[i] == fd)
+		{
+			clients[i] = clients[*num_clients - 1];
+			--(*num_clients);
+			break;
+		}
+	}
+}
+
 void read_from_socket(const int sock_client, const int epoll_fd, int* clients, int* num_clients)
 {
 	struct Message message = {0};
@@ -102,22 +80,6 @@ void read_from_socket(const int sock_client, const int epoll_fd, int* clients, i
 		if (clients[i] != sock_client)
 		{
 			send_all(clients[i], &message, sizeof(message));
-		}
-	}
-}
-
-void remove_client(const int fd, const int epoll_fd, int* clients, int* num_clients)
-{
-	epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-	close(fd);
-
-	for (int i = 0; i < *num_clients; i++)
-	{
-		if (clients[i] == fd)
-		{
-			clients[i] = clients[*num_clients - 1];
-			--(*num_clients);
-			break;
 		}
 	}
 }
