@@ -1,0 +1,10 @@
+#ifndef NETWORK_H
+#define NETWORK_H
+
+#define CONNECTION_HOST "127.0.0.1"
+#define LISTENING_PORT 5094
+#define MAX_CLIENTS 10
+#define ADDRESS_FAMILY AF_INET
+#define MAX_EVENTS 64
+
+#endif

@@ -7,5 +7,5 @@ endif()
 
 project ("NetworkProject" C)
 
-add_executable (server  "src/server.c")
-add_executable (client  "src/client.c")
+add_executable (server  "src/server.c" "src/message.c")
+add_executable (client  "src/client.c" "src/message.c")

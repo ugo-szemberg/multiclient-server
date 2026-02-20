@@ -1,4 +1,5 @@
-#include "../include/client.h"
+#include "../include/network.h"
+#include "../include/message.h"
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -6,37 +7,12 @@
 #include <poll.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
-int main(void)
+void set_nickname(char* nickname)
 {
-	printf("---CLIENT---\n\n Type your nickname: ");
-	char nickname[BUFFER_NICKNAME];
-	if (!fgets(nickname, BUFFER_NICKNAME, stdin))
-	{
-		return -1;
-	}
-
-	set_nickname(nickname);
-
-	const int sock = connect_to_server();
-
-	client_loop(sock);
-
-	close(sock);
-
-	return 0;
-}
-
-void set_nickname(const char* nickname)
-{
-	const size_t length = strcspn(nickname, "\n");
-	memcpy(message.nickname, nickname, length);
-	message.nickname[length] = '\0';
-}
-
-void reset_message_content(void)
-{
-	memset(message.content, '\0', BUFFER_MESSAGE);
+	const size_t length = strlen(nickname);
+	nickname[length - 1] = '\0';
 }
 
 int connect_to_server(void)
@@ -68,7 +44,7 @@ int connect_to_server(void)
 	return sock;
 }
 
-void client_loop(const int sock)
+void client_loop(const int sock, const char* nickname)
 {
 	struct pollfd poll_fds[2];
 
@@ -87,26 +63,51 @@ void client_loop(const int sock)
 
 		if (poll_fds[0].revents & POLLIN)
 		{
-			const ssize_t bytes = read(STDIN_FILENO, &message.content, BUFFER_MESSAGE);
+			Message send_message = {0};
+			strcpy(send_message.nickname, nickname);
+			const ssize_t bytes = read(STDIN_FILENO, &send_message.content, BUFFER_CONTENT);
 			if (bytes <= 0)
 			{
 				break;
 			}
+			send_message.content[bytes - 1] = '\0';
 
-			send(sock, &message, sizeof(message), 0);
+			time_t now = time(NULL);
+			const struct tm* local = localtime(&now);
+			strftime(send_message.time, sizeof(send_message.time), "%H:%M", local);
+
+			send_all(sock, &send_message, sizeof(send_message));
 		}
 
 		if (poll_fds[1].revents & POLLIN)
 		{
-			char buffer[BUFFER_MESSAGE];
-			const ssize_t size = recv(sock, buffer, BUFFER_MESSAGE - 1, 0);
-			if (size <= 0)
+			Message recv_message = {0};
+			if (recv_all(sock, &recv_message, sizeof(recv_message)) == -1)
 			{
 				break;
 			}
 
-			buffer[size] = '\0';
-			printf("%s", buffer);
+			printf("[%s] %s %s\n", recv_message.nickname, recv_message.content, recv_message.time);
 		}
 	}
+}
+
+int main(void)
+{
+	printf("---CLIENT---\n\n Type your nickname: ");
+	char nickname[BUFFER_NICKNAME];
+	if (!fgets(nickname, BUFFER_NICKNAME, stdin))
+	{
+		return -1;
+	}
+
+	set_nickname(nickname);
+
+	const int sock = connect_to_server();
+
+	client_loop(sock, nickname);
+
+	close(sock);
+
+	return 0;
 }
