@@ -6,37 +6,53 @@
 #include <poll.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
-int main(void)
+size_t send_all(int sock, const void *buffer, size_t length)
 {
-	printf("---CLIENT---\n\n Type your nickname: ");
-	char nickname[BUFFER_NICKNAME];
-	if (!fgets(nickname, BUFFER_NICKNAME, stdin))
+	size_t total_sent = 0;
+	const char *ptr = buffer;
+
+	while (total_sent < length)
 	{
-		return -1;
+		ssize_t sent = send(sock, ptr + total_sent, length - total_sent, 0);
+
+		if (sent <= 0)
+		{
+			return -1;
+		}
+
+		total_sent += sent;
 	}
 
-	set_nickname(nickname);
-
-	const int sock = connect_to_server();
-
-	client_loop(sock);
-
-	close(sock);
-
-	return 0;
+	return total_sent;
 }
 
-void set_nickname(const char* nickname)
+size_t recv_all(int sock, void *buffer, size_t length)
 {
-	const size_t length = strcspn(nickname, "\n");
-	memcpy(message.nickname, nickname, length);
-	message.nickname[length] = '\0';
+	size_t total_received = 0;
+	char *ptr = buffer;
+
+	while (total_received < length)
+	{
+		ssize_t received = recv(sock, ptr + total_received, length - total_received, 0);
+
+		if (received <= 0)
+		{
+			return -1;
+		}
+
+		total_received += received;
+	}
+
+	return total_received;
 }
 
-void reset_message_content(void)
+void set_nickname(char* _nickname)
 {
-	memset(message.content, '\0', BUFFER_MESSAGE);
+	const size_t length = strlen(_nickname);
+	_nickname[length - 1] = '\0';
+	strcpy(nickname, _nickname);
 }
 
 int connect_to_server(void)
@@ -87,26 +103,57 @@ void client_loop(const int sock)
 
 		if (poll_fds[0].revents & POLLIN)
 		{
-			const ssize_t bytes = read(STDIN_FILENO, &message.content, BUFFER_MESSAGE);
+			struct Message send_message = {0};
+			strcpy(send_message.nickname, nickname);
+			char buff[BUFFER_CONTENT] = {0};
+			const ssize_t bytes = read(STDIN_FILENO, buff, BUFFER_CONTENT);
+			buff[bytes - 1] = '\0';
+
+
+			strcpy(send_message.content, buff);
 			if (bytes <= 0)
 			{
 				break;
 			}
 
-			send(sock, &message, sizeof(message), 0);
+			time_t now = time(NULL);
+			const struct tm* local = localtime(&now);
+			char buf[BUFFER_TIME] = {0};
+
+			strftime(buf, sizeof(buf), "%H:%M", local);
+			strcpy(send_message.time, buf);
+			printf("%s", send_message.time);
+
+			send_all(sock, &send_message, sizeof(send_message));
 		}
 
 		if (poll_fds[1].revents & POLLIN)
 		{
-			char buffer[BUFFER_MESSAGE];
-			const ssize_t size = recv(sock, buffer, BUFFER_MESSAGE - 1, 0);
-			if (size <= 0)
-			{
+			struct Message recv_message = {0};
+			if (recv_all(sock, &recv_message, sizeof(recv_message)) == -1)
 				break;
-			}
 
-			buffer[size] = '\0';
-			printf("%s", buffer);
+			printf("[%s] %s %s\n", recv_message.nickname, recv_message.content, recv_message.time);
 		}
 	}
+}
+
+int main(void)
+{
+	printf("---CLIENT---\n\n Type your nickname: ");
+	char nickname[BUFFER_NICKNAME];
+	if (!fgets(nickname, BUFFER_NICKNAME, stdin))
+	{
+		return -1;
+	}
+
+	set_nickname(nickname);
+
+	const int sock = connect_to_server();
+
+	client_loop(sock);
+
+	close(sock);
+
+	return 0;
 }
