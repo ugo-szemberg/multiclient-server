@@ -63,7 +63,7 @@ void client_loop(const int sock, const char* nickname)
 
 		if (poll_fds[0].revents & POLLIN)
 		{
-			struct Message send_message = {0};
+			Message send_message = {0};
 			strcpy(send_message.nickname, nickname);
 			const ssize_t bytes = read(STDIN_FILENO, &send_message.content, BUFFER_CONTENT);
 			if (bytes <= 0)
@@ -81,7 +81,7 @@ void client_loop(const int sock, const char* nickname)
 
 		if (poll_fds[1].revents & POLLIN)
 		{
-			struct Message recv_message = {0};
+			Message recv_message = {0};
 			if (recv_all(sock, &recv_message, sizeof(recv_message)) == -1)
 			{
 				break;

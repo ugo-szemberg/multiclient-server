@@ -6,9 +6,24 @@
 #include <unistd.h>
 #include <sys/epoll.h>
 
-//static char record_messages[10000] = {0};
+typedef struct
+{
+	int epoll_fd;
+	int clients[MAX_CLIENTS];
+	int num_clients;
+	Message recorded_messages[100];
+	int num_recorded_messages;
+} server_context;
 
-void accept_new_connection(const int sock, const int epoll_fd, int* clients, int* num_clients)
+void send_recorded_messages(const int sock_client, const Message* recorded_messages, const int* num_recorded_messages)
+{
+	for (int i = 0; i < *num_recorded_messages; ++i)
+	{
+		send_all(sock_client, &recorded_messages[i], sizeof(Message));
+	}
+}
+
+void accept_new_connection(server_context* context, const int sock)
 {
 	const int sock_client = accept(sock, NULL, NULL);
 	if (sock_client == -1)
@@ -16,7 +31,7 @@ void accept_new_connection(const int sock, const int epoll_fd, int* clients, int
 		return;
 	}
 
-	if (*num_clients >= MAX_CLIENTS)
+	if (context->num_clients >= MAX_CLIENTS)
 	{
 		close(sock_client);
 		return;
@@ -26,60 +41,53 @@ void accept_new_connection(const int sock, const int epoll_fd, int* clients, int
 	event.events = EPOLLIN;
 	event.data.fd = sock_client;
 
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_client, &event) == -1)
+	if (epoll_ctl(context->epoll_fd, EPOLL_CTL_ADD, sock_client, &event) == -1)
 	{
 		close(sock_client);
 		return;
 	}
 
-	clients[*num_clients] = sock_client;
-	++(*num_clients);
-	printf("New client connected : Client %d\n", sock_client);
+	context->clients[context->num_clients] = sock_client;
+	++context->num_clients;
+	printf("Client connected : [ID %d]\n", sock_client);
 
-	//if (strlen(record_messages) > 0)
-	//{
-	//	uint32_t size = htonl(strlen(record_messages));
-	//	send_all(sock_client, &size, sizeof(size));
-	//	send_all(sock_client, record_messages, strlen(record_messages));
-	//}
+	send_recorded_messages(sock_client, context->recorded_messages, &context->num_recorded_messages);
 }
 
-void remove_client(const int fd, const int epoll_fd, int* clients, int* num_clients)
+void remove_client(server_context* context, const int fd)
 {
-	epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+	epoll_ctl(context->epoll_fd, EPOLL_CTL_DEL, fd, NULL);
 	close(fd);
 
-	for (int i = 0; i < *num_clients; i++)
+	for (int i = 0; i < context->num_clients; i++)
 	{
-		if (clients[i] == fd)
+		if (context->clients[i] == fd)
 		{
-			clients[i] = clients[*num_clients - 1];
-			--(*num_clients);
+			context->clients[i] = context->clients[context->num_clients - 1];
+			--context->num_clients;
 			break;
 		}
 	}
 }
 
-void read_from_socket(const int sock_client, const int epoll_fd, int* clients, int* num_clients)
+void read_from_socket(server_context* context, int sock_client)
 {
-	struct Message message = {0};
+	Message message = {0};
 	if (recv_all(sock_client, &message, sizeof(message)) == -1)
 	{
-		printf("Client disconnected : Client %d\n", sock_client);
-		remove_client(sock_client, epoll_fd, clients, num_clients);
+		printf("Client disconnected : [ID %d]\n", sock_client);
+		remove_client(context, sock_client);
 		return;
 	}
 
-	//char send_message[BUFFER_MESSAGE + 4];
-	//snprintf(send_message, sizeof(send_message), "[%s] %s %s", message.nickname, message.content, message.time);
+	context->recorded_messages[context->num_recorded_messages] = message;
+	++context->num_recorded_messages;
 
-	//strcat(record_messages, send_message);
-
-	for (int i = 0; i < *num_clients; i++)
+	for (int i = 0; i < context->num_clients; i++)
 	{
-		if (clients[i] != sock_client)
+		if (context->clients[i] != sock_client)
 		{
-			send_all(clients[i], &message, sizeof(message));
+			send_all(context->clients[i], &message, sizeof(message));
 		}
 	}
 }
@@ -111,8 +119,10 @@ int main(void)
 		return -1;
 	}
 
-	const int epoll_fd = epoll_create1(0);
-	if (epoll_fd == -1)
+	server_context context = {0};
+
+	context.epoll_fd = epoll_create1(0);
+	if (context.epoll_fd == -1)
 	{
 		close(sock);
 		return -1;
@@ -121,20 +131,18 @@ int main(void)
 	struct epoll_event event;
 	event.events = EPOLLIN;
 	event.data.fd = sock;
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &event) == -1)
+	if (epoll_ctl(context.epoll_fd, EPOLL_CTL_ADD, sock, &event) == -1)
 	{
 		close(sock);
-		close(epoll_fd);
+		close(context.epoll_fd);
 		return -1;
 	}
 
-	int clients[MAX_CLIENTS];
-	int num_clients = 0;
 
 	while (1)
 	{
 		struct epoll_event events[MAX_EVENTS];
-		const int fds_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+		const int fds_count = epoll_wait(context.epoll_fd, events, MAX_EVENTS, -1);
 		if (fds_count == -1)
 		{
 			break;
@@ -146,16 +154,16 @@ int main(void)
 
 			if (fd == sock)
 			{
-				accept_new_connection(sock, epoll_fd, clients, &num_clients);
+				accept_new_connection(&context, sock);
 			}
 			else
 			{
-				read_from_socket(fd, epoll_fd, clients, &num_clients);
+				read_from_socket(&context, fd);
 			}
 		}
 	}
 	
 	close(sock);
-	close(epoll_fd);
+	close(context.epoll_fd);
 	return 0;
 }
